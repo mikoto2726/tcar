@@ -1,0 +1,32 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "C Program - Build",
+			"type": "shell",
+			"command": "make",
+			"args": [
+				"-C", "build_make",
+				"all"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": "$gcc"
+		},{
+			"label": "C Program - Clean",
+			"type": "shell",
+			"command": "make",
+			"args": [
+				"-C", "build_make",
+				"clean"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": "$gcc"
+		}
+	]
+}
