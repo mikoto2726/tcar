@@ -1,31 +1,46 @@
+
 #include <tk/tkernel.h>
 #include <tm/tmonitor.h>
 
-/* GPIO(Port-E) */
-#define PEDATA      0x400C0400      // Data Register
-#define PECR        0x400C0404      // Output Control register
-#define PEIE        0x400C0438      // Input Control register
+// GPIOポートH
+#define GPIOH_BASE (0x400C0700)
+#define PHCR    (GPIOH_BASE + 0x04)
+#define PHFR3   (GPIOH_BASE + 0x10)
+#define PHIE    (GPIOH_BASE + 0x38)
 
-INT  usermain(void)
+// MPT2タイマ
+#define	MT2_BASE	(0x400C7200UL)
+#define	MT2EN   (MT2_BASE + 0x00)
+#define	MT2RUN	(MT2_BASE + 0x04)
+#define	MT2IGCR	(MT2_BASE + 0x30)
+#define	MT2IGOCR	(MT2_BASE + 0x40)
+#define	MT2IGRG2	(MT2_BASE + 0x44)
+#define	MT2IGRG3	(MT2_BASE + 0x48)
+#define	MT2IGRG4	(MT2_BASE + 0x4C)
+
+
+EXPORT	INT	usermain( void )
 {
-    *(_UW*)PEIE &= ~((1<<2) | (1<<3)); // Clear bit 2 and 3 to disable interrupts
-    *(_UW*)PECR |= (1<<2) | (1<<3);   // Set bit 2 and 3 to configure as output
-    tm_printf("Please open http://127.0.0.1:8888\n");
+  // MTP2初期設定
+  *(_UW*)MT2EN     |=  (1 << 7) | (1 << 0);
+  *(_UW*)MT2IGOCR  |= (1 << 1);
+  *(_UW*)MT2IGCR   &= ~(1 << 5); // 0b10110000
 
-    for (int i = 0; i < 3; ++i) {
-        // Left LED on, Right LED off
-        *(_UW*)PEDATA |= (1<<2);   // Turn on left LED
-        *(_UW*)PEDATA &= ~(1<<3);  // Turn off right LED
-        tk_dly_tsk(500);
+  // 端子をMTP2に設定
+  *(_UW*)PHFR3   |=  (1 << 2);
+  *(_UW*)PHIE    &= ~(1 << 2);
+  *(_UW*)PHCR   |=  (1 << 2);
+  
+  // MTP2 出力波形の設定 
+  *(_UW*)MT2IGRG2  = 1;
+  *(_UW*)MT2IGRG4  = 18000;
+  *(_UW*)MT2IGRG3  = 9000;
 
-        // Left LED off, Right LED on
-        *(_UW*)PEDATA &= ~(1<<2);  // Turn off left LED
-        *(_UW*)PEDATA |= (1<<3);   // Turn on right LED
-        tk_dly_tsk(500);
-    }
+  *(_UW*)MT2RUN    |= (1 << 2);   // ブザー鳴動開始
+  
+  tk_dly_tsk(1000);
 
-    // Turn off both LEDs
-    *(_UW*)PEDATA &= ~((1<<2) | (1<<3));
+  *(_UW*)MT2RUN    &= ~(1 << 2); // ブザー鳴動停止
 
-    return 0;
+  return 0;
 }
