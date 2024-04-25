@@ -24,7 +24,10 @@ EXPORT	INT	usermain( void )
   // MTP2初期設定
   *(_UW*)MT2EN     |=  (1 << 7) | (1 << 0);
   *(_UW*)MT2IGOCR  |= (1 << 1);
-  *(_UW*)MT2IGCR   &= ~(1 << 5); // 0b10110000
+  *(_UW*)MT2IGOCR  &= ~(1 << 5);
+  *(_UW*)MT2IGCR   &= ~(1 << 6);
+  *(_UW*)MT2IGCR   &= 0xF0;
+
 
   // 端子をMTP2に設定
   *(_UW*)PHFR3   |=  (1 << 2);
@@ -36,11 +39,11 @@ EXPORT	INT	usermain( void )
   *(_UW*)MT2IGRG4  = 18000;
   *(_UW*)MT2IGRG3  = 9000;
 
-  *(_UW*)MT2RUN    |= (1 << 2);   // ブザー鳴動開始
+  *(_UW*)MT2RUN    |= (1 << 2) | (1 << 0);   // ブザー鳴動開始
   
   tk_dly_tsk(1000);
 
-  *(_UW*)MT2RUN    &= ~(1 << 2); // ブザー鳴動停止
+  *(_UW*)MT2RUN    &= ~((1 << 2) | (1 << 0)); // ブザー鳴動停止
 
   return 0;
 }
