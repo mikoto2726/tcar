@@ -1,18 +1,20 @@
-#include <tk/tkernel.h>
 #include <tm/tmonitor.h>
+#define PE_DATA 0x400C0400 //PEデータレジスタのアドレス
+#define PE_CR   0x400C0404 //PE出力コントロールレジスタ
 
-/* GPIO(Port-E) */
-#define PEDATA 		0x400C0400		// Data Register
-#define PECR 		0x400C0404		// Output Control register
-#define PEIE 		0x400C0438		// Input Control register
-
-INT  usermain(void)
-{
- 	*(_UW*)PEIE &= ~(1<<2);
- 	*(_UW*)PECR |= (1<<2);
-	tm_printf("Please open http://127.0.0.1:8888\n");
- 	while(1) {
-    		*(_UW*)PEDATA ^= (1<<2);
-		tk_dly_tsk(500);
-  	}		
+EXPORT INT usermain(void){
+	_UW   i;
+	*(_UW*)(PE_CR) |= (1<<2); //PE3出力許可
+	*(_UW*)(PE_CR) |= (1<<3); //PE3出力許可
+	for (int i=1;i<=3; i++){
+		*(_UW*)(PE_DATA) |= (1<<3); //PE3'High'出力
+		tk_dly_tsk(100);
+		*(_UW*)(PE_DATA) &= ~(1<<3); //PE3'Low'出力
+		tk_dly_tsk(400);
+		*(_UW*)(PE_DATA) |= (1<<2); //PE2'High'出力
+		tk_dly_tsk(100);
+		*(_UW*)(PE_DATA) &= ~(1<<2); //PE2'Low'出力
+		tk_dly_tsk(400);
+	}
+	return 0;
 }
