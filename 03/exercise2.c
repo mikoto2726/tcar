@@ -32,8 +32,8 @@ EXPORT	INT	usermain( void )
   
   // MTP2 出力波形の設定 ド
   *(_UW*)MT2IGRG2  = 1;
-  *(_UW*)MT2IGRG4  = 18000;
-  *(_UW*)MT2IGRG3  = 9000;
+  *(_UW*)MT2IGRG4  = 17200;
+  *(_UW*)MT2IGRG3  = 8600;
 
   *(_UW*)MT2RUN    |= (1<<2) | (1<<0);   // ブザー鳴動開始
   
