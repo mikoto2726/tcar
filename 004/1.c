@@ -7,6 +7,12 @@
 #define PACR    (GPIOA_BASE + 0x04)
 #define PAIE    (GPIOA_BASE + 0x38)
 
+// GPIOポートH
+#define GPIOH_BASE (0x400C0700)
+#define PHCR    (GPIOH_BASE + 0x04)
+#define PHFR3   (GPIOH_BASE + 0x10)
+#define PHIE    (GPIOH_BASE + 0x38)
+
 // MPT2タイマ
 #define	MT2_BASE	(0x400C7200UL)
 #define	MT2EN   (MT2_BASE + 0x00)
@@ -20,26 +26,44 @@
 /* ブザー制御タスクの処理関数 */
 void bz_task(INT stacd, void *exinf)
 {
-    UW sw3;
+    UW sw3_prev = 0;  // 最初のSW3の状態を保持する変数
 
-    // GPIOを入力ポートに設定
-    *(_UW*)PACR &= ~(1<<3);
-    *(_UW*)PAIE |= (1<<3);
+      // MTP2初期設定
+    *(_UW*)MT2EN     |=  (1 << 7) | (1 << 0);
+    *(_UW*)MT2IGOCR  |= (1 << 1);
+    *(_UW*)MT2IGOCR  &= ~(1 << 5);
+    *(_UW*)MT2IGCR   &= ~(1 << 6);
+    *(_UW*)MT2IGCR   &= 0xF0;
 
-    UW sw3_prev = 1;  // 前回のSW3の状態を保持する変数（初期値は1で、押されていない状態を表す）
-    UW sw3_current;
+    // GPIOを入力ポートに設定 初期化 端子
+    *(_UW*)PACR &= ~(1 << 3);
+    *(_UW*)PAIE |= (1 << 3);
+      // 端子をMTP2に設定
+    *(_UW*)PHFR3   |=  (1 << 2);
+    *(_UW*)PHIE    &= ~(1 << 2);
+    *(_UW*)PHCR   |=  (1 << 2);
+  
+
+    
+
+      // MTP2 出力波形の設定 
+    *(_UW*)MT2IGRG2  = 1;
+    *(_UW*)MT2IGRG4  = 18000;
+    *(_UW*)MT2IGRG3  = 9000;
 
     while(1) {
-        sw3_current = *(_UW*)PADATA & (1<<3);  // SW3の状態を読み取る
-        if (sw3_current == 0 && sw3_prev == 1) {  // SW3が押されたとき
-            // MPT2からブザーに波形を出力するコード
-            *(_UW*)MT2RUN |= (1 << 2);  // MPT2の出力2番をONにする
-            *(_UW*)MT2RUN |= (1 << 0);  // MPT2の出力0番をONにする
-            tk_dly_tsk(2000);  // 2秒間待機
-            *(_UW*)MT2RUN &= ~(1 << 2);  // MPT2の出力2番をOFFにする
-            *(_UW*)MT2RUN &= ~(1 << 0);  // MPT2の出力0番をOFFにする
+        UW sw3 = *(_UW*)PADATA & (1 << 3);  // SW3の状態を読み取る
+        if (sw3 != sw3_prev) {  // SW3の状態が変化したとき
+            sw3_prev = sw3;  // 前回の状態を更新
+            if (sw3 == 0) {  // SW3が押されたとき
+                // MPT2からブザーに波形を出力するコード
+                *(_UW*)MT2RUN |= (1 << 2);  // MPT2の出力2番をONにする
+                *(_UW*)MT2RUN |= (1 << 0);  // MPT2の出力0番をONにする
+                tk_dly_tsk(2000);  // 2秒間待機
+                *(_UW*)MT2RUN &= ~(1 << 2);  // MPT2の出力2番をOFFにする
+                *(_UW*)MT2RUN &= ~(1 << 0);  // MPT2の出力0番をOFFにする
+            }
         }
-        sw3_prev = sw3_current;  // 前回の状態を更新
         tk_dly_tsk(100);  // 一定時間待機
     }
 }
