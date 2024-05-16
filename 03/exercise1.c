@@ -28,7 +28,7 @@ EXPORT	INT	usermain( void )
   // 端子をMTP2に設定
   *(_UW*)PHFR3   |=  (1<<2);
   *(_UW*)PHIE    &=  ~(1<<2);
-  *(_UW*)PHCR   |=  (1<<2);
+  *(_UW*)PHCR    |=  (1<<2);
   
   // MTP2 出力波形の設定 
   *(_UW*)MT2IGRG2  = 1;
