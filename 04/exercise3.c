@@ -116,7 +116,7 @@ EXPORT int usermain(void){
     tskid1       = tk_cre_tsk( &ctsk );
 
     ctsk.task    = (FP)led_task;
-    ctsk.itskpri = 11;
+    ctsk.itskpri = 10;
     tskid2       = tk_cre_tsk( &ctsk );
     
     tk_sta_tsk(tskid1, 0);
