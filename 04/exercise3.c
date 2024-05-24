@@ -110,12 +110,12 @@ EXPORT int usermain(void){
     ID tskid1, tskid2;
 
     ctsk.tskatr  = TA_HLNG | TA_RNG3;
-    ctsk.task    = task1;
+    ctsk.task    = (FP)bz_task;
     ctsk.itskpri = 10;
     ctsk.stksz   = 1024;
     tskid1       = tk_cre_tsk( &ctsk );
 
-    ctsk.task    = task2;
+    ctsk.task    = (FP)led_task;
     ctsk.itskpri = 11;
     tskid2       = tk_cre_tsk( &ctsk );
     
