@@ -45,6 +45,8 @@
 #define ADAREG02 (ADA_BASE + 0x3c)
 #define ADAREG03 (ADA_BASE + 0x40)
 
+ID sw_flgid; 
+
 void bz_task(INT stacd, void *exinf){
     UW  sw3, sw4;
 
@@ -72,7 +74,7 @@ void bz_task(INT stacd, void *exinf){
     if(sw3 == 0){ //sw3を押したら
         tk_set_flg(sw_flgid, (1<<0)); //ビット0のフラグをセット
     }
-    sw3  =  *(_UW*)PADATA & (1<<7); //sw4の読み込み
+    sw4  =  *(_UW*)PADATA & (1<<7); //sw4の読み込み
     if(sw4 == 0){ //sw4を押したら
         tk_set_flg(sw_flgid, (1<<1)); //ビット1のフラグをセット
     }  
@@ -110,11 +112,31 @@ void led_task(INT stacd, void *exinf){
     }
     
 EXPORT int usermain(void){
+    T_CTSK ctsk;
+    ID tskid1;
+
     ID sw_flgid;
     T_CFLG cflg;
     cflg.flgatr  = TA_WMUL | TA_TFIFO; //複数のタスク待ちを許可 | 並び順は先着順
     cflg.iflgptn = 0;
     sw_flgid = tk_cre_flg(&cflg);
+    
+    ctsk.tskatr  = TA_HLNG | TA_RNG3;
+    ctsk.task    = (FP)bz_task;
+    ctsk.itskpri = 10;
+    ctsk.stksz   = 1024;
+    tskid1       = tk_cre_tsk( &ctsk );
+
+    ctsk.task    = (FP)led_task;
+    ctsk.itskpri = 10;
+    led_tskid    = tk_cre_tsk( &ctsk );
+    
+    tk_sta_tsk(tskid1, 0);
+
+    tk_slp_tsk(TMO_FEVR);
+
+    
+    
 
     return 0;
 }
