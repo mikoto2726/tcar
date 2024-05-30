@@ -18,12 +18,14 @@
 
 ID sw_flgid; // フラグIDをグローバル変数として宣言
 
-void bz_task(INT stacd, void *exinf){
+void sw_task(INT stacd, void *exinf){
     UW sw3, sw4;
 
     // GPIOを入力ポートに設定
     *(_UW*)PACR &= ~(1<<3);
     *(_UW*)PAIE |= (1<<3);
+    *(_UW*)PECR &= ~(1<<7);
+    *(_UW*)PEIE |= (1<<7);
 
     while(1){
         sw3 = *(_UW*)PADATA & (1<<3); // sw3の読み込み
@@ -38,37 +40,38 @@ void bz_task(INT stacd, void *exinf){
     }
 }
 
-void right_led_task(INT stacd, void *exinf){
-    *(_UW*)(PE_CR) |= (1<<2); // PE2出力許可
-
+void led_task_left(INT stacd, void *exinf){
+    *(_UW*)(PE_CR) |= (1 << 2);// PE2出力許可
     UINT flg = 0;
     while(1){
-        tk_wai_flg(sw_flgid, (1<<1), TWF_ORW | TWF_BITCLR, &flg, TMO_FEVR);
-        if(flg & (1<<1)){
-            *(_UW*)(PE_DATA) |= (1<<2); // 右PE2'High'出力
-            tk_dly_tsk(1000);
-            *(_UW*)(PE_DATA) &= ~(1<<2); // 右PE2'Low'出力
-        }
-    }
-}
-
-void left_led_task(INT stacd, void *exinf){
-    *(_UW*)(PE_CR) |= (1<<3); // PE3出力許可
-
-    UINT flg = 0;
-    while(1){
-        tk_wai_flg(sw_flgid, (1<<0), TWF_ORW | TWF_BITCLR, &flg, TMO_FEVR);
+        tk_wai_flg(sw_flgid, (1<<0), (TWF_ORW | TWF_BITCLR), &flg, TMO_FEVR);
         if(flg & (1<<0)){
-            *(_UW*)(PE_DATA) |= (1<<3); // 左PE3'High'出力
+            *(_UB*)(PEDATA) |= (1<<3); // 左PE3'High'出力
             tk_dly_tsk(1000);
-            *(_UW*)(PE_DATA) &= ~(1<<3); // 左PE3'Low'出力
+            *(_UB*)(PEDATA) &= ~(1<<3); // 左PE3'Low'出力
         }
+        
     }
 }
     
+
+void led_task_right(INT stacd, void *exinf){
+    *(_UW*)(PE_CR) |= (1 << 3); // PE3出力許可
+    UINT flg = 0;
+    while(1){
+        tk_wai_flg(sw_flgid, (1<<1),(TWF_ORW | TWF_BITCLR), &flg, TMO_FEVR);
+        if (flg & (1<<1)){
+            *(_UB*)(PEDATA) |= (1<<2); // 右PE2'High'出力
+            tk_dly_tsk(1000);
+            *(_UB*)(PEDATA) &= ~(1<<2); // 右PE2'Low'出力
+        }
+    }
+}
+
+
 EXPORT int usermain(void){
     T_CTSK ctsk;
-    ID tskid1, tskid2, tskid3;
+    ID tskid1, tskid2_le, tskid2_ri;
 
     // フラグIDの生成
     T_CFLG cflg;
@@ -76,28 +79,28 @@ EXPORT int usermain(void){
     cflg.iflgptn = 0;
     sw_flgid = tk_cre_flg(&cflg);
 
-    // bz_task のタスク生成
+    // sw_task のタスク生成
     ctsk.tskatr  = TA_HLNG | TA_RNG3;
-    ctsk.task    = (FP)bz_task;
+    ctsk.task    = (FP)sw_task;
     ctsk.itskpri = 10;
     ctsk.stksz   = 1024;
     tskid1       = tk_cre_tsk(&ctsk);
 
-    // right_led_task のタスク生成
-    ctsk.task    = (FP)right_led_task;
+    // led_task のタスク生成
+    ctsk.task    = (FP)led_task_left;
     ctsk.itskpri = 10;
-    tskid2       = tk_cre_tsk(&ctsk);
+    tskid2_le       = tk_cre_tsk(&ctsk);
 
-    // left_led_task のタスク生成
-    ctsk.task    = (FP)left_led_task;
+    // led_task のタスク生成
+    ctsk.task    = (FP)led_task_right;
     ctsk.itskpri = 10;
-    tskid3       = tk_cre_tsk(&ctsk);
+    tskid2_ri       = tk_cre_tsk(&ctsk);
 
     // タスクの開始
     tk_sta_tsk(tskid1, 0);
-    tk_sta_tsk(tskid2, 0);
-    tk_sta_tsk(tskid3, 0);
-
+    tk_sta_tsk(tskid2_le, 0);
+    tk_sta_tsk(tskid2_ri, 0);
+    
     tk_slp_tsk(TMO_FEVR);
     
     return 0;

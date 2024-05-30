@@ -7,7 +7,7 @@
 #define PHFR3   (GPIOH_BASE + 0x10)
 #define PHIE    (GPIOH_BASE + 0x38)
 
-// MPT2タイマ
+// MPT2タイマ ブザー
 #define	MT2_BASE	(0x400C7200UL)
 #define	MT2EN   (MT2_BASE + 0x00)
 #define	MT2RUN	(MT2_BASE + 0x04)

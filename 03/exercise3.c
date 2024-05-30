@@ -1,13 +1,13 @@
 #include <tk/tkernel.h>  /* T-Kernel ヘッダ */
 #include <tm/tmonitor.h> /* tm_printf() など */
 
-// GPIOポートA
+// GPIOポートA sw3
 #define GPIOA_BASE (0x400C0000)
 #define PADATA  (GPIOA_BASE + 0x00)
 #define PACR    (GPIOA_BASE + 0x04)
 #define PAIE    (GPIOA_BASE + 0x38)
 
-// GPIOポートE
+// GPIOポートE sw4
 #define GPIOE_BASE (0x400C0400)
 #define PEDATA  (GPIOE_BASE + 0x00)
 #define PECR    (GPIOE_BASE + 0x04)
