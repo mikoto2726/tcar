@@ -13,13 +13,9 @@
 #define PEDATA 0x400C0400 // PEデータレジスタのアドレス
 #define PECR   0x400C0404 // PE出力コントロールレジスタ
     
-void inthdr(UINT, intno){
-    ClearInt(INT3): 
-    tm_wup_tsk(led_tskid);
-    return;
-}
 
-void led_task(INT stack, void *exinf) {
+
+void led_tskid(INT stack, void *exinf) {
     *(_UW*)(PECR) |= (1<<3); //PE3出力許可
 
     while(1){
@@ -30,6 +26,11 @@ void led_task(INT stack, void *exinf) {
     } 
 }
 
+void inthdr(UINT intno){
+    ClearInt(INT3);
+    tk_wup_tsk(led_tskid);
+    return;
+}
 
 EXPORT int usermain(void) {
     UINT intsts;

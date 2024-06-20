@@ -13,9 +13,9 @@
 #define PEDATA 0x400C0400 // PEデータレジスタのアドレス
 #define PECR   0x400C0404 // PE出力コントロールレジスタ
     
-void inthdr(UINT, intno){
-    ClearInt(INT3):
-    tm_printf();
+void inthdr(UINT intno){
+    ClearInt(INT3);
+    tm_printf("inthdr");
     return;
 }
 
