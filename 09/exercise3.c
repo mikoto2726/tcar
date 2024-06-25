@@ -19,15 +19,20 @@ BOOL is_blinking = FALSE; // 点滅状態を保持するフラグ
 void cychdr(void *exinf) {
     // 周期ハンドラの処理内容
     static BOOL is_on = FALSE;
-
-    if (is_on) {
-        *(_UB*)(PEDATA) &= ~(1 << 3); // LEDオフ
-        is_on = FALSE;
-    } else {
-        *(_UB*)(PEDATA) |= (1 << 3); // LEDオン
-        is_on = TRUE;
+    *(_UW*)PECR |= (1 << 3); //PE3出力許可
+    while(1){
+        tk_slp_tsk(TMO_FEVR); //タスクを起床待ちに
+        if (is_on) {
+            tk_stp_cyc(cycid); //周期ハンドラ停止
+            *(_UB*)(PEDATA) &= ~(1 << 3); // LEDオフ
+            is_on = FALSE;
+        } else {
+            tk_sta_cyc(cycid); //周期ハンドラ実行
+            is_on = TRUE;
+        }
+        return; // 周期ハンドラの終了
     }
-    return; // 周期ハンドラの終了
+    
 }
 
 void inthdr(UINT intno) {
