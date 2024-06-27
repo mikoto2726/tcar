@@ -52,3 +52,31 @@ exec.rcv_size = 1;
 exec.rcv_data = &rcv_data;
 
 err = tk_swri_dev(dd, TDN_I2C_EXEC, &exec, sizeof(T_I2C_EXEC), &asz);
+
+//BH1745NUCの計測値のレジスタを読む
+T_I2C_EXEC exec;
+UB         snd_data;
+UH         sens_data[4];
+SZ         asz;
+ER         err;
+
+exec.sadr = sensor_addr[i];
+snd_data  = 0x50;
+exec.snd_size = 1;
+exec.snd_data = &snd_data;
+exec.rcv_size = sizeof(sens_data);
+exec.rcv_data = (UB*)(sens_data);
+
+err = tk_swri_dev(dd, TDN_I2C_EXEC, &exec, sizeof(T_I2C_EXEC), &asz);
+
+//カラーセンサー読み込み
+INT i;
+
+for (i = 0; i < SENSOR_MAX; i++){
+    while(1){
+        //測定値更新の確認
+        if (){
+            break;
+        }
+    }
+}
