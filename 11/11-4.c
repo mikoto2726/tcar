@@ -1,167 +1,215 @@
-/*
- *----------------------------------------------------------------------
- *    micro T-Kernel 3.00.03
- *
- *    Copyright (C) 2006-2020 by Ken Sakamura.
- *    This software is distributed under the T-License 2.2.
- *----------------------------------------------------------------------
- *
- *    Released by TRON Forum(http://www.tron.org) at 2021/03/31.
- *
- *----------------------------------------------------------------------
- */
-#include <sys/machine.h>
-#ifdef CPU_CORE_ARMV7M
-/*
- *	dispatch.S (ARMv7-M)
- *	Dispatcher
- */
+#include <tk/tkernel.h>
+#include <tm/tmonitor.h>
+#include <tk/device.h>
 
-#define	_in_asm_source_
+// PMDデバイスの固有データ定義
+#define PMD_DATA_EN       0
+#define PMD_DATA_PERIOD   1
+#define PMD_DATA_PULSEO   2
+#define PMD_DATA_PULSE1   3
+#define PMD_DATA_PULSE2   4
 
-#include <sys/machine.h>
-#include <tk/errno.h>
-#include <sys/sysdef.h>
-#include <sys/knldef.h>
+#define SENSOR_MAX 4
+#define SNS_TH 10
 
-#include "offset.h"
+const UB sensor_addr[SENSOR_MAX] = {0x38, 0x39, 0x3c, 0x3D};
 
-	.code 16
-	.syntax unified
-	.thumb
+typedef struct {
+    UH red;
+    UH green;
+    UH blue;
+    UH clear;
+} T_COLOR_DATA;
 
-/* ------------------------------------------------------------------------ */
-/*
- * Dispatcher
- *
- *	Contexts to save
- *	Save registers except for ssp to a stack. Save 'ssp' to TCB.
- *
- *	   High Address +---------------+
- *			| (fpscr)	|
- *			| (S0 - S15)	|
- *			+---------------+
- *			| xpsr		|
- *			| pc		| Return address
- *			| lr		|
- *			| R12		|
- *			| R0-R3		|
- *			+---------------+ Save by Exception entry process.
- *			| R4 - R11	|
- *		ssp ->	| lr		|
- *			+---------------+
- *			| (S16 - S31)	|
- *		ssp ->	| (ufpu)	|
- *	    Low Address +---------------+
- *
- *		( ) Stacked only while using FPU
- */
+T_COLOR_DATA cdata[SENSOR_MAX];
+INT diff, steer;
 
-#if USE_FPU
-#define TA_FPU		0x00001000	/* Task attribute - Use FPU */
-#define	EXPRN_NO_FPU	0x00000010	/* FPU usage flag  0:use 1:no use */
-#endif
+// プロトタイプ宣言
+ER set_steer(ID dd, INT steer);
+ER set_speed(ID dd, INT speed);
+ER init_pmd(ID dd);
+ER read_sensor(ID dd, T_COLOR_DATA cdata[]);
 
-	.text
-	.align 2
-	.thumb
-	.thumb_func
-	.globl Csym(knl_dispatch_entry)
+ER set_steer(ID dd, INT steer) {
+    UW data;
+    SZ asz;
+    ER err;
 
-Csym(knl_dispatch_entry):	
-/*----------------- Start dispatch processing. -----------------*/
-	ldr	r0, =Csym(knl_dispatch_disabled)
-	ldr	r1, =1
-	str	r1, [r0]			// Dispatch disable
+    if (steer < -500 || steer > 500) {
+        return E_PAR;
+    }
 
-	ldr	r0, =Csym(knl_ctxtsk)
-	ldr	r1, [r0]			// R1 = ctxtsk
-	cmp	r1, #0
-	bne	l_dispatch_000
+    data = steer + 1500; // -500 ~ +500 を 1000 ~ 2000 の範囲にする
+    err = tk_swri_dev(dd, PMD_DATA_PULSE1, &data, 1, &asz);
 
-	ldr	sp, =(Csym(knl_tmp_stack) + TMP_STACK_SIZE)	// Set temporal stack
-	b	l_dispatch_100
+    return err;
+}
 
-/*----------------- Save "ctxtsk" context. -----------------*/
-l_dispatch_000: 
-	push	{r4-r11}
-	push	{lr}
+ER set_speed(ID dd, INT speed) {
+    UW data;
+    SZ asz;
+    ER err;
 
-#if USE_FPU			// Save FPU register
-	ldr	r2, [r1, #TCB_tskatr]
-	ands	r2, r2, #TA_FPU
-	beq	l_dispatch_010			// ctxtsk is not a TA_FPU attribute.
+    if (speed < -500 || speed > 500) return E_PAR;
+    data = 14000 - (1500 - speed);
+    err = tk_swri_dev(dd, PMD_DATA_PULSEO, &data, 1, &asz);
+    return err;
+}
 
-	ands	r3,lr, #EXPRN_NO_FPU
-	bne	l_dispatch_010			// ctxtsk does not execute FPU instructions.
+ER init_pmd(ID dd) {
+    UW data;
+    SZ asz;
+    ER err;
 
-	vpush	{s16-s31}			// Push FPU register (S15-S31)
-	push	{r3}				//FPU usage flag
+    data = 14000;        // 矩形波の周期 14,000μ秒
+    err = tk_swri_dev(dd, PMD_DATA_PERIOD, &data, 1, &asz);
+    if (err != E_OK) return err;
 
-l_dispatch_010:			// End of FPU register save process
-#endif /* USE_FPU */
+    data = 14000 - 1500; // 走行モータの初期値(停止)
+    err = tk_swri_dev(dd, PMD_DATA_PULSEO, &data, 1, &asz);
+    if (err != E_OK) return err;
 
-	str	sp, [r1, #TCB_tskctxb + CTXB_ssp]	// Save 'ssp' to TCB
+    data = 1500;         // ステアリングの初期値(直進)
+    err = tk_swri_dev(dd, PMD_DATA_PULSE1, &data, 1, &asz);
+    if (err != E_OK) return err;
 
-	ldr	r2, =0
-	str	r2, [r0]			// ctxtsk = NULL
+    data = 1;            // 出力開始
+    err = tk_swri_dev(dd, PMD_DATA_EN, &data, 1, &asz);
+    if (err != E_OK) return err;
 
+    return E_OK;
+}
 
-/*----------------- Dispatch from "ctxtsk" to "schedtsk" -----------------*/
-l_dispatch_100:
-	ldr	r5, =Csym(knl_schedtsk)		// R5 = &schedtsk
-	ldr	r6, =Csym(knl_lowpow_discnt)	// R6 = &lowpow_discnt
+ER read_sensor(ID dd, T_COLOR_DATA cdata[]) {
+    UB data[2];
+    SZ asz;
+    ER err;
+    INT i;
 
-l_dispatch_110:
-	ldr	r2, =INTPRI_VAL(INTPRI_MAX_EXTINT_PRI)	// Disable interruput
-	msr	basepri, r2
+    for (i = 0; i < SENSOR_MAX; i++){
+        data[0] = 0x40;
+        data[1] = 0x80;
+        err = tk_swri_dev(dd, sensor_addr[i], &data, 2, &asz);
 
-	ldr	r8, [r5]			// R8 = schedtsk
-	cmp	r8, #0				// Is there 'schedtsk'?
-	bne	l_dispatch_120
+        data[0] = 0x40;
+        data[1] = 0x00;
+        err = tk_swri_dev(dd, sensor_addr[i], &data, 2, &asz);
 
-	/* Moves to power saving mode because there are no tasks that can be run. */
-	ldr	ip, [r6]			// Is 'low_pow' disabled?
-	cmp	ip, #0
-	it	eq
-	bleq	Csym(low_pow)			// call low_pow()
+        data[0] = 0x42;
+        data[1] = 0x10;
+        err = tk_swri_dev(dd, sensor_addr[i], &data, 2, &asz);
+    }
 
-	ldr	r2, =0
-	msr	basepri, r2			// Enable interruput
+    for (i = 0; i < SENSOR_MAX; i++){
+        while(1) {
+            T_I2C_EXEC exec;
+            UB snd_data;
+            UB rcv_data;
 
-	b	l_dispatch_110
+            exec.sadr = sensor_addr[i];
+            snd_data = 0x42;
+            exec.snd_size = 1;
+            exec.snd_data = &snd_data;
+            exec.rcv_size = 1;
+            exec.rcv_data = &rcv_data;
+            err = tk_swri_dev(dd, TDN_I2C_EXEC, &exec, sizeof(T_I2C_EXEC), &asz);
 
-l_dispatch_120:			// Switch to 'schedtsk'
-	str	r8, [r0]			// ctxtsk = schedtsk
-	ldr	sp, [r8, #TCB_tskctxb + CTXB_ssp]	// Restore 'ssp' from TCB
+            if(rcv_data & 0x80){
+                UH sens_data[4];
 
+                exec.sadr = sensor_addr[i];
+                snd_data = 0x50;
+                exec.snd_size = 1;
+                exec.snd_data = &snd_data;
+                exec.rcv_size = sizeof(sens_data);
+                exec.rcv_data = (UB*)(sens_data);
+                err = tk_swri_dev(dd, TDN_I2C_EXEC, &exec, sizeof(T_I2C_EXEC), &asz);
 
-/*----------------- Restore "schedtsk" context. -----------------*/
+                cdata[i].red   = sens_data[0];
+                cdata[i].green = sens_data[1];
+                cdata[i].blue  = sens_data[2];
+                cdata[i].clear = sens_data[3];
+                break;
+            }
+        }
+    }
 
-#if USE_FPU			// Restore FPU context
-	ldr	r0, [r8, #TCB_tskatr]
-	ands	r0, r0, #TA_FPU
-	beq	l_dispatch_200			// schedtsk is not a TA_FPU attribute.
+    return err;
+}
 
-	ldr	r3,[sp]				// load FPU usage flag
-	ands	r3, r3, #EXPRN_NO_FPU
-	bne	l_dispatch_200			// schedtsk does not execute FPU instructions.
+LOCAL void drv_task(void *exinf) {
+    ID sns_dd, pmd_dd;
+    ER err;
 
-	pop	{r3}
-	vpop	{s16-s31}			// Pop FPU register (S15-S31)
+    sns_dd = tk_opn_dev("iicb", TD_UPDATE);   // I2Cドライバのオープン
+    if (sns_dd < 0) {
+        tm_printf("Failed to open I2C driver\n");
+        return;
+    }
 
-l_dispatch_200:			//  End of FPU register restore process
-#endif	/* USE_FPU */
+    pmd_dd = tk_opn_dev("pmda", TD_UPDATE);   // PMDドライバのオープン
+    if (pmd_dd < 0) {
+        tm_printf("Failed to open PMD driver\n");
+        tk_cls_dev(sns_dd, 0);
+        return;
+    }
 
-	pop	{lr}
-	pop	{r4-r11}
+    err = init_pmd(pmd_dd);                   // PMDデバイスの初期設定
+    if (err < 0) {
+        tm_printf("PMD initialization failed: %d\n", err);
+        tk_cls_dev(sns_dd, 0);
+        tk_cls_dev(pmd_dd, 0);
+        return;
+    }
 
-	ldr	r0, =Csym(knl_dispatch_disabled)
-	ldr	r1, =0
-	str	r1, [r0]			// Dispatch enable
+    set_speed(pmd_dd, 50); // 初期速度を設定
 
-	msr	basepri, r1			// Enable inperrupt
+    while (1) {
+        err = read_sensor(sns_dd, cdata); // カラーセンサの読込み
+        if (err < 0) {
+            tm_printf("Sensor read failed: %d\n", err);
+            continue;
+        }
 
-	bx	lr
+        diff = (cdata[2].clear + cdata[3].clear) - (cdata[0].clear + cdata[1].clear);
+        if (diff > SNS_TH) {              // 左が大きい
+            steer = 500;                  // 左折する
+        } else if (diff < -SNS_TH) {      // 右が大きい
+            steer = -500;                 // 右折する
+        } else {                          // 左右同じ
+            steer = 0;                    // 直進する
+        }
+        err = set_steer(pmd_dd, steer);   // ステアリング制御
+        if (err < 0) {
+            tm_printf("Failed to set steer: %d\n", err);
+        } else {
+            tm_printf("Steer set to %d\n", steer);
+        }
 
-#endif /* CPU_CORE_ARMV7M */
+        tk_dly_tsk(100);                  // 100msの待機
+    }
+
+    tk_cls_dev(sns_dd, 0);                // デバイスのクローズ
+    tk_cls_dev(pmd_dd, 0);                // デバイスのクローズ
+}
+
+EXPORT INT usermain(void) {
+    T_CTSK drv_ctsk;          /* 走行タスク生成情報 */
+    ID drv_tskid;
+
+    drv_ctsk.tskatr = TA_HLNG | TA_RNG3;  /* タスク属性 */
+    drv_ctsk.task = (FP)drv_task;         /* 走行タスクの処理関数 */
+    drv_ctsk.itskpri = 10;                /* タスク起動時優先度 */
+    drv_ctsk.stksz = 1024;                /* スタックサイズ */
+
+    drv_tskid = tk_cre_tsk(&drv_ctsk);    /* 走行タスクの生成 */
+    if (drv_tskid < 0) {
+        tm_printf("Failed to create task\n");
+        return drv_tskid;
+    }
+    tk_sta_tsk(drv_tskid, 0);             /* 走行タスクの起動 */
+
+    tk_slp_tsk(TMO_FEVR);                 /* 初期タスクを休止状態へ */
+                                          /* TMO_FEVRは無限待ち */
+    return E_OK;
+}
