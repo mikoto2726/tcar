@@ -51,7 +51,7 @@ LOCAL void drv_task(void *exinf) {
         return;
     }
 
-    for (speed = 40; speed < 70; speed++) {
+    for (speed = 50; speed < 62; speed++) {
         set_speed(pmd_dd, speed);             // 速度制御
         tm_printf("SPEED = %d\n", speed);
         tk_dly_tsk(1000);                     // 1秒待機
