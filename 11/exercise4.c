@@ -125,7 +125,7 @@ LOCAL void drv_task(void *exinf) {
         }
         set_steer(pmd_dd, steer);         // ステアリング制御
 
-        for (speed = 40; speed < 70; speed++) {
+        for (speed = 50; speed < 51; speed++) {
             set_speed(pmd_dd, speed);     // 速度制御
             tm_printf("SPEED = %d\n", speed);
             tk_dly_tsk(1000);             // 1秒待機
@@ -153,4 +153,5 @@ EXPORT INT usermain(void) {
                                           /* TMO_FEVRは無限待ち */
     return 0;
 }
+
 
